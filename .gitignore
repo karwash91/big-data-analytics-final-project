@@ -1,0 +1,11 @@
+.env
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+outputs/charts/*
+!outputs/charts/.gitkeep
+outputs/reports/*
+!outputs/reports/.gitkeep
+data/cu.data.0.Current
+data/dataset_*_IMF.STA_CPI_5.0.0.csv

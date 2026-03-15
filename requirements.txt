@@ -1,0 +1,6 @@
+kafka-python==2.2.15
+matplotlib==3.10.1
+pandas==2.2.3
+psycopg2-binary==2.9.10
+python-dotenv==1.0.1
+SQLAlchemy==2.0.39
