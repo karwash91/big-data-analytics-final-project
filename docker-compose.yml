@@ -59,12 +59,55 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # This service is a long-running worker for ad-hoc commands
+    command: tail -f /dev/null
     container_name: cpi-app
     depends_on:
       kafka:
         condition: service_healthy
       postgres:
         condition: service_healthy
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cpi_analytics}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_CONSUMER_GROUP: ${KAFKA_CONSUMER_GROUP:-cpi-etl}
+    volumes:
+      - .:/app
+
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python -m etl.consumer
+    container_name: cpi-consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cpi_analytics}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_CONSUMER_GROUP: ${KAFKA_CONSUMER_GROUP:-cpi-etl}
+    volumes:
+      - .:/app
+
+  ui:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: cpi-ui
+    command: streamlit run ui/app.py --server.port=8501 --server.address=0.0.0.0 --server.maxUploadSize=1024
+    ports:
+      - "8501:8501"
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-cpi_analytics}
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
