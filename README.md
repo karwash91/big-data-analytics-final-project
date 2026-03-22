@@ -18,30 +18,26 @@ This project implements the end-to-end CPI comparison pipeline using Python, Kaf
 ## Quick start
 This project is managed by Docker Compose and a Streamlit user interface.
 
-1.  **Start all services:**
-
-    ## Pre-requisites
-
-  - Install Python and Docker.
-  - Download the raw data files and place them in the `data/` directory:
+**Pre-requisites**
+- Install Python and Docker.
+- Download raw data files:
   - **BLS:** https://download.bls.gov/pub/time.series/cu/cu.data.0.Current
   - **IMF:** https://data.imf.org/en/datasets/IMF.STA:CPI
-  - Expected filenames in `data/`:
-  - `cu.data.0.Current`
-  - A `.csv` file from the IMF dataset download (e.g., `dataset_..._IMF.STA_CPI_5.0.0.csv`).
 
-    ```bash
-    docker compose down -v
-    docker compose up -d
-    ```
-    This command will build the Docker images and start the PostgreSQL database, Kafka broker, a background ETL consumer, and the web UI.
+1) **Start all services**
+```bash
+docker compose down -v && docker compose up -d
+```
 
-2.  **Access the Uploader UI:**
+Starts Postgres, Kafka, the always-on ETL consumer, and the Streamlit UI inside the Compose network.
 
-    Open your web browser and navigate to [http://localhost:8501](http://localhost:8501).
-    Kafka UI - [http://localhost:8080](http://localhost:8080).
+1.  **Access the Uploader UI:**
 
-3.  **Load Data:**
+    Open your web browser and navigate to:
+    - [Streamlit UI](http://localhost:8501)
+    - [Kafka UI](http://localhost:8080)
+
+2.  **Load Data:**
 
     Load files using "Browse files."  The UI will detect the files you placed in the `data/` directory. Click the "Load" button for each file to trigger the data producers. This sends the data into the Kafka pipeline, where the background consumer processes it into the database.
 
@@ -61,5 +57,3 @@ After loading data through the UI, you can manually trigger the analytics and ch
     - Charts are saved in `outputs/charts/`
     - Exported reports are saved in `outputs/reports/`
     - You can inspect Kafka topics and messages via the Kafka UI at http://localhost:8080.
-
-
