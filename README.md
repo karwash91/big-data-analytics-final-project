@@ -26,19 +26,20 @@ This project is managed by Docker Compose and a Streamlit user interface.
   - **IMF:** https://data.imf.org/en/datasets/IMF.STA:CPI
 
 1. **Start all services**
+
+Starts Postgres, Kafka, the always-on ETL consumer, and the Streamlit UI inside the Compose network.
+
 ```bash
 docker compose down -v && docker compose up -d
 ```
 
-Starts Postgres, Kafka, the always-on ETL consumer, and the Streamlit UI inside the Compose network.
-
-2.  **Access the Uploader UI:**
+1.  **Access the Uploader UI:**
 
     Open your web browser and navigate to:
     - [Streamlit UI](http://localhost:8501)
     - [Kafka UI](http://localhost:8080)
 
-3.  **Load Data:**
+2.  **Load Data:**
 
     Load files using "Browse files."  The UI will detect the files you placed in the `data/` directory. Click the "Load" button for each file to trigger the data producers. This sends the data into the Kafka pipeline, where the background consumer processes it into the database.
 
