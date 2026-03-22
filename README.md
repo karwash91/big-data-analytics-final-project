@@ -16,48 +16,50 @@ This project implements the end-to-end CPI comparison pipeline using Python, Kaf
 | - | common/ | Holds shared config values. |
 
 ## Quick start
+This project is managed by Docker Compose and a Streamlit user interface.
 
-0. Pre-requisites:
+1.  **Start all services:**
 
-- Install Python, Docker
-- Download the raw data files in your browser and place them in data/:
-  - BLS: https://download.bls.gov/pub/time.series/cu/cu.data.0.Current
-  - IMF: https://data.imf.org/en/datasets/IMF.STA:CPI
-- Expected filenames in data/:
-  - cu.data.0.Current
-  - dataset_..._IMF.STA_CPI_5.0.0.csv
+    ## Pre-requisites
 
-1. Start infrastructure:
+  - Install Python and Docker.
+  - Download the raw data files and place them in the `data/` directory:
+  - **BLS:** https://download.bls.gov/pub/time.series/cu/cu.data.0.Current
+  - **IMF:** https://data.imf.org/en/datasets/IMF.STA:CPI
+  - Expected filenames in `data/`:
+  - `cu.data.0.Current`
+  - A `.csv` file from the IMF dataset download (e.g., `dataset_..._IMF.STA_CPI_5.0.0.csv`).
 
-```bash
-docker compose down -v
-docker compose up -d
-```
+    ```bash
+    docker compose down -v
+    docker compose up -d
+    ```
+    This command will build the Docker images and start the PostgreSQL database, Kafka broker, a background ETL consumer, and the web UI.
 
-2. Open Kafka UI at http://localhost:8080 if you want to inspect topics and messages.
+2.  **Access the Uploader UI:**
 
-3. Start the ETL consumer in one terminal:
+    Open your web browser and navigate to [http://localhost:8501](http://localhost:8501).
+    Kafka UI - [http://localhost:8080](http://localhost:8080).
 
-```bash
-docker compose exec app python -m etl.consumer
-```
+3.  **Load Data:**
 
-4. Replay the datasets from another terminal:
+    Load files using "Browse files."  The UI will detect the files you placed in the `data/` directory. Click the "Load" button for each file to trigger the data producers. This sends the data into the Kafka pipeline, where the background consumer processes it into the database.
 
-```bash
-docker compose exec app python -m producers.bls_producer
-docker compose exec app python -m producers.imf_producer
-```
+## Running Analytics
 
-5. Build analytics outputs:
+After loading data through the UI, you can manually trigger the analytics and chart-building scripts.
 
-```bash
-docker compose exec app python -m analytics.analyze
-docker compose exec app python -m visualization.build_charts
-```
+1.  **Build analytics outputs:**
 
-6. Review outputs:
+    ```bash
+    docker compose exec app python -m analytics.analyze
+    docker compose exec app python -m visualization.build_charts
+    ```
 
-- charts in outputs/charts/
-- exported reports in outputs/reports/
-- Kafka UI in http://localhost:8080
+2.  **Review outputs:**
+
+    - Charts are saved in `outputs/charts/`
+    - Exported reports are saved in `outputs/reports/`
+    - You can inspect Kafka topics and messages via the Kafka UI at http://localhost:8080.
+
+

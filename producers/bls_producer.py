@@ -2,6 +2,7 @@
 
 import csv
 import json
+import argparse
 import logging
 import time
 from datetime import datetime, timezone
@@ -14,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 
 TOPIC = "cpi.raw.bls"
-DATA_FILE = "cu.data.0.Current"
 TARGET_SERIES_ID = "CUSR0000SA0"
 TARGET_NORMALIZED_SERIES = "us_all_items_cpi"
 
@@ -47,15 +47,23 @@ def map_row(row: dict[str, str]) -> dict[str, object]:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="BLS CPI Kafka Producer")
+    parser.add_argument("--file", required=True, help="The data file to process.")
+    args = parser.parse_args()
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
     logging.getLogger("kafka").setLevel(logging.WARNING)
 
-    csv_path = DATA_DIR / DATA_FILE
+    csv_path = DATA_DIR / args.file
     producer = get_kafka_producer()
     sent_count = 0
+
+    if not csv_path.exists():
+        logger.error("File not found: %s", csv_path)
+        return
 
     logger.info(
         "Starting producer source=%s topic=%s file=%s", "bls", TOPIC, csv_path.name
