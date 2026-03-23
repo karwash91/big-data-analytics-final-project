@@ -93,6 +93,20 @@ def main() -> None:
         LIMIT 10
     """
 
+    top_inflation_sql = """
+        SELECT
+            date,
+            normalized_series,
+            source,
+            pct_change_1m,
+            pct_change_12m,
+            rolling_avg_3m
+        FROM derived_inflation_metrics
+        WHERE pct_change_12m IS NOT NULL
+        ORDER BY pct_change_12m DESC, date DESC
+        LIMIT 10
+    """
+
     logger.info("Starting analytics refresh")
     with engine.begin() as connection:
         # Rebuild analytics tables first
@@ -102,16 +116,18 @@ def main() -> None:
     # Export slide-ready report tables
     summary_df = pd.read_sql_query(summary_sql, engine)
     divergence_df = pd.read_sql_query(divergence_sql, engine)
+    top_inflation_df = pd.read_sql_query(top_inflation_sql, engine)
 
     summary_df.to_csv(reports_dir.joinpath("source_summary.csv"), index=False)
     divergence_df.to_csv(reports_dir.joinpath("largest_divergence_periods.csv"), index=False)
+    top_inflation_df.to_csv(reports_dir.joinpath("top_12m_inflation_periods.csv"), index=False)
+
     logger.info(
-        "Wrote reports summary_rows=%s divergence_rows=%s",
+        "Wrote reports summary_rows=%s divergence_rows=%s top_inflation_rows=%s",
         len(summary_df),
         len(divergence_df),
+        len(top_inflation_df),
     )
-    logger.info("Finished analytics refresh")
-    engine.dispose()
 
 
 if __name__ == "__main__":
