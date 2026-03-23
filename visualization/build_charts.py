@@ -75,6 +75,22 @@ def plot_divergence(frame: pd.DataFrame, output_dir: Path) -> None:
     logger.info("Wrote chart %s", output_path.name)
 
 
+def plot_top_inflation(frame: pd.DataFrame, output_dir: Path) -> None:
+    """Plot top 12-month inflation periods."""
+    output_path = output_dir.joinpath("top_12m_inflation_periods.png")
+    labels = frame["date"].dt.strftime("%Y-%m-%d") + " | " + frame["source"] + " | " + frame["normalized_series"]
+    plt.figure(figsize=(12, 6))
+    plt.bar(labels, frame["pct_change_12m"])
+    plt.title("Top 12-Month Inflation Periods")
+    plt.xlabel("Date | Source | Series")
+    plt.ylabel("Percent Change (12M)")
+    plt.xticks(rotation=45, ha="right")
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=160)
+    plt.close()
+    logger.info("Wrote chart %s", output_path.name)
+
+
 def main() -> None:
     """Query analytics tables and write chart files."""
     logging.basicConfig(
@@ -133,18 +149,33 @@ def main() -> None:
         ORDER BY date
     """
 
+    top_inflation_sql = """
+        SELECT
+            date,
+            normalized_series,
+            source,
+            pct_change_12m
+        FROM derived_inflation_metrics
+        WHERE pct_change_12m IS NOT NULL
+        ORDER BY pct_change_12m DESC, date DESC
+        LIMIT 10
+    """
+
     logger.info("Starting chart generation")
 
     inflation_frame = pd.read_sql_query(inflation_sql, engine)
     source_series_frame = pd.read_sql_query(source_series_sql, engine)
     divergence_frame = pd.read_sql_query(divergence_sql, engine)
+    top_inflation_frame = pd.read_sql_query(top_inflation_sql, engine)
     inflation_frame["date"] = pd.to_datetime(inflation_frame["date"])
     source_series_frame["date"] = pd.to_datetime(source_series_frame["date"])
     divergence_frame["date"] = pd.to_datetime(divergence_frame["date"])
+    top_inflation_frame["date"] = pd.to_datetime(top_inflation_frame["date"])
 
     plot_source_series(source_series_frame, output_dir)
     plot_inflation(inflation_frame, output_dir)
     plot_divergence(divergence_frame, output_dir)
+    plot_top_inflation(top_inflation_frame, output_dir)
 
     logger.info("Finished chart generation")
     engine.dispose()
