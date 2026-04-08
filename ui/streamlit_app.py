@@ -176,10 +176,15 @@ with col2:
     st.info(
         """
         **How to use:**
-        1. Select a BLS CPI data file (TSV format)
+        1. Select a BLS CPI data file (cu.data prefix, any format)
         2. Enter a category name for the data
         3. Click "Load Data" to publish to Kafka
         4. Run the ETL consumer separately to load data into the database
+        
+        **File Requirements:**
+        - File name must start with "cu.data"
+        - TSV delimiter (tab-separated)
+        - Up to 2GB file size
         """
     )
 
