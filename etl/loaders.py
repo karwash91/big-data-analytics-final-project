@@ -17,10 +17,11 @@ def insert_raw_event(cursor: Any, raw_event: dict[str, Any]) -> None:
         INSERT INTO {table_name} (
             source,
             source_series_id,
+            category,
             raw_payload_json,
             date,
             value
-        ) VALUES (%s, %s, %s, %s, %s)
+        ) VALUES (%s, %s, %s, %s, %s, %s)
         ON CONFLICT (source_series_id, date, value) DO NOTHING
     """
     cursor.execute(
@@ -28,6 +29,7 @@ def insert_raw_event(cursor: Any, raw_event: dict[str, Any]) -> None:
         (
             raw_event["source"],
             raw_event["source_series_id"],
+            raw_event["category"],
             # Store original event JSON
             Json(raw_event),
             raw_event["date"],

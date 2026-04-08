@@ -4,6 +4,7 @@ IF NOT EXISTS raw_imf_cpi (
     id BIGSERIAL PRIMARY KEY,
     source TEXT NOT NULL,
     source_series_id TEXT NOT NULL,
+    category VARCHAR(100) NOT NULL,
     raw_payload_json JSONB NOT NULL,
     date DATE NOT NULL,
     value NUMERIC(12, 4) NOT NULL,
