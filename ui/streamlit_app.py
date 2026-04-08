@@ -14,6 +14,13 @@ from kafka import KafkaProducer
 
 from common.config import KAFKA_BOOTSTRAP_SERVERS
 
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s %(message)s",
+)
+logging.getLogger("kafka").setLevel(logging.WARNING)
+
 logger = logging.getLogger(__name__)
 
 # Page configuration
@@ -68,6 +75,7 @@ def process_file(uploaded_file, category: str) -> dict:
     try:
         producer = get_kafka_producer()
         topic = "cpi.raw.bls"
+        logger.info("Starting file processing file=%s topic=%s category=%s", uploaded_file.name, topic, category)
 
         # Create a temporary file from the upload
         with tempfile.NamedTemporaryFile(
@@ -104,22 +112,28 @@ def process_file(uploaded_file, category: str) -> dict:
                         message_key = f"{event['source']}:{event['source_series_id']}:{event['date']}"
                         producer.send(topic, key=message_key, value=event)
                         results["sent_count"] += 1
+                        
+                        if results["sent_count"] % 100 == 1:
+                            logger.info("Published source=%s key=%s count=%s", event["source"], message_key, results["sent_count"])
                         time.sleep(0.001)  # Small delay between sends
 
                     except Exception as e:
-                        results["errors"].append(
-                            f"Row {results['sent_count'] + results['skipped_count']}: {str(e)}"
-                        )
+                        error_msg = f"Row {results['sent_count'] + results['skipped_count']}: {str(e)}"
+                        results["errors"].append(error_msg)
+                        logger.error("Error processing row: %s", error_msg)
 
                 producer.flush()
                 results["success"] = True
+                logger.info("Finished file processing sent_count=%s skipped_count=%s", results["sent_count"], results["skipped_count"])
 
         finally:
             # Clean up temp file
             tmp_path.unlink()
 
     except Exception as e:
-        results["errors"].append(f"Processing error: {str(e)}")
+        error_msg = f"Processing error: {str(e)}"
+        results["errors"].append(error_msg)
+        logger.error("Fatal processing error: %s", error_msg, exc_info=True)
 
     return results
 
