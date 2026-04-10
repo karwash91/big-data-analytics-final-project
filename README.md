@@ -25,35 +25,60 @@ This project is managed by Docker Compose and a Streamlit user interface.
   - **BLS:** https://download.bls.gov/pub/time.series/cu/cu.data.0.Current
   - **IMF:** https://data.imf.org/en/datasets/IMF.STA:CPI
 
-1. **Start all services**
 
-Starts Postgres, Kafka, the always-on ETL consumer, and the Streamlit UI inside the Compose network.
+0. Pre-requisites:
+  - Install Python, Docker
+  - Download the raw data files in your browser and place them in data/:
+    - BLS: https://download.bls.gov/pub/time.series/cu/cu.data.0.Current
+    - IMF: https://data.imf.org/en/datasets/IMF.STA:CPI
+  - Note: Files can now have any name matching the pattern `cu.data*` for BLS data
+
+docker compose down -v && docker compose up -d
+
+1. Start infrastructure:
 
 ```bash
-docker compose down -v && docker compose up -d
+docker compose down -v
+docker compose up -d
 ```
 
-1.  **Access the Uploader UI:**
+2. Open web interfaces:
+  - Kafka UI: http://localhost:8080 (inspect topics and messages)
+  - Streamlit UI: http://localhost:8501 (upload files and specify categories)
 
-    Open your web browser and navigate to:
-    - [Streamlit UI](http://localhost:8501)
-    - [Kafka UI](http://localhost:8080)
+3. **Option A: Using Streamlit UI (Recommended)**
+  - Open http://localhost:8501
+  - Upload a BLS CPI data file
+  - Enter a custom category name
+  - Click "Load Data" to publish to Kafka
+  - Proceed to step 4
 
-2.  **Load Data:**
+4. **Option B: Manual file-based producer**
+  - Place data files in the `data/` directory  
+  - Run the producer manually:
+  ```bash
+  docker compose exec app python -m producers.bls_producer
+  docker compose exec app python -m producers.imf_producer
+  ```
+  - Proceed to step 5
 
-    Load files using "Browse files."  The UI will detect the files you placed in the `data/` directory. Click the "Load" button for each file to trigger the data producers. This sends the data into the Kafka pipeline, where the background consumer processes it into the database.
+5. Start the ETL consumer (manual job, run once):
+```bash
+docker compose exec app python -m etl.consumer
+```
 
-## Running Analytics
 
-After loading data through the UI, you can manually trigger the analytics and chart-building scripts.
+6. Build analytics outputs:
+```bash
+docker compose exec app python -m analytics.analyze
+docker compose exec app python -m visualization.build_charts
+```
 
-4.  **Build analytics outputs:**
 
-    ```bash
-    docker compose exec app python -m analytics.analyze
-    docker compose exec app python -m visualization.build_charts
-    ```
-5.  **Review outputs:**
+7. Review outputs:
+  - charts in outputs/charts/
+  - exported reports in outputs/reports/
+  - Kafka UI in http://localhost:8080
 
     - Charts are saved in `outputs/charts/`
     - Exported reports are saved in `outputs/reports/`

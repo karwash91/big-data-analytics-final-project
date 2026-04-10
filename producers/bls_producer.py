@@ -15,6 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 TOPIC = "cpi.raw.bls"
+DATA_FILE_PATTERN = "cu.data*"
 TARGET_SERIES_ID = "CUSR0000SA0"
 TARGET_NORMALIZED_SERIES = "us_all_items_cpi"
 
@@ -48,8 +49,7 @@ def map_row(row: dict[str, str]) -> dict[str, object]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="BLS CPI Kafka Producer")
-    parser.add_argument("--file", required=True, help="The data file to process.")
-    args = parser.parse_args()
+    args = parser.parse_args([])  # No file argument needed
 
     logging.basicConfig(
         level=logging.INFO,
@@ -57,51 +57,66 @@ def main() -> None:
     )
     logging.getLogger("kafka").setLevel(logging.WARNING)
 
-    csv_path = DATA_DIR / args.file
     producer = get_kafka_producer()
     sent_count = 0
 
-    if not csv_path.exists():
-        logger.error("File not found: %s", csv_path)
+    # Find all files matching the pattern
+    data_files = sorted(DATA_DIR.glob(DATA_FILE_PATTERN))
+    if not data_files:
+        logger.warning(
+            "No data files found matching pattern=%s in directory=%s",
+            DATA_FILE_PATTERN,
+            DATA_DIR,
+        )
         return
 
     logger.info(
-        "Starting producer source=%s topic=%s file=%s", "bls", TOPIC, csv_path.name
+        "Starting producer source=%s topic=%s files=%s",
+        "bls",
+        TOPIC,
+        len(data_files),
     )
-    with csv_path.open(newline="", encoding="utf-8") as handle:
-        reader = csv.DictReader(handle, delimiter="\t")
-        # Raw headers are padded
-        reader.fieldnames = [field_name.strip() for field_name in reader.fieldnames]
-        for row in reader:
-            if row["series_id"].strip() != TARGET_SERIES_ID:
-                continue
-            # Skip annual average row
-            if row["period"].strip() == "M13":
-                continue
-            if row["value"].strip() == "-":
-                logger.info(
-                    "Skipping source=%s series=%s date=%s-%s reason=missing_value",
-                    "bls",
-                    row["series_id"].strip(),
-                    row["year"].strip(),
-                    row["period"].strip(),
-                )
-                continue
 
-            event = map_row(row)
-            # Stamp replay publish time
-            event["ingested_at"] = (
-                datetime.now(timezone.utc).replace(microsecond=0).isoformat()
-            )
-            message_key = (
-                f"{event['source']}:{event['source_series_id']}:{event['date']}"
-            )
-            producer.send(TOPIC, key=message_key, value=event)
-            sent_count += 1
-            logger.info(
-                "Published source=%s key=%s count=%s", "bls", message_key, sent_count
-            )
-            time.sleep(0.01)  # Slow replay slightly
+    for csv_path in data_files:
+        logger.info(
+            "Processing file source=%s topic=%s file=%s", "bls", TOPIC, csv_path.name
+        )
+        with csv_path.open(newline="", encoding="utf-8") as handle:
+            reader = csv.DictReader(handle, delimiter="\t")
+            # Raw headers are padded
+            reader.fieldnames = [field_name.strip() for field_name in reader.fieldnames]
+            for row in reader:
+                # Skip annual average row
+                if row["period"].strip() == "M13":
+                    continue
+                if row["value"].strip() == "-":
+                    logger.info(
+                        "Skipping source=%s series=%s date=%s-%s reason=missing_value",
+                        "bls",
+                        row["series_id"].strip(),
+                        row["year"].strip(),
+                        row["period"].strip(),
+                    )
+                    continue
+
+                event = map_row(row)
+                # Stamp replay publish time
+                event["ingested_at"] = (
+                    datetime.now(timezone.utc).replace(microsecond=0).isoformat()
+                )
+                message_key = (
+                    f"{event['source']}:{event['source_series_id']}:{event['date']}"
+                )
+                producer.send(TOPIC, key=message_key, value=event)
+                sent_count += 1
+                logger.info(
+                    "Published source=%s key=%s count=%s", "bls", message_key, sent_count
+                )
+                time.sleep(0.01)  # Slow replay slightly
+        
+        # Remove file after consuming
+        csv_path.unlink()
+        logger.info("Removed file source=%s file=%s", "bls", csv_path.name)
 
     producer.flush()
     logger.info("Finished producer source=%s count=%s", "bls", sent_count)
