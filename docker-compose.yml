@@ -17,6 +17,28 @@ services:
       timeout: 5s
       retries: 5
 
+  consumer:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: python -m etl.consumer
+    container_name: cpi-consumer
+    depends_on:
+      kafka:
+        condition: service_healthy
+      postgres:
+        condition: service_healthy
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cpi_analytics}
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_HOST: postgres
+      POSTGRES_PORT: 5432
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_CONSUMER_GROUP: ${KAFKA_CONSUMER_GROUP:-cpi-etl}
+    volumes:
+      - .:/app
+
   kafka:
     image: apache/kafka:4.2.0
     container_name: cpi-kafka
@@ -78,6 +100,7 @@ services:
     volumes:
       - .:/app
 
+
   streamlit:
     build:
       context: .
@@ -97,53 +120,11 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:9092
       KAFKA_CONSUMER_GROUP: ${KAFKA_CONSUMER_GROUP:-cpi-etl}
     command: streamlit run ui/streamlit_app.py --server.port=8501 --server.address=0.0.0.0
-    volumes:
-      - .:/app
-      - .streamlit:/root/.streamlit
-    depends_on:
-      kafka:
-        condition: service_healthy
-      postgres:
-        condition: service_healthy
-<<<<<<< HEAD
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-cpi_analytics}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_CONSUMER_GROUP: ${KAFKA_CONSUMER_GROUP:-cpi-etl}
-    volumes:
-      - .:/app
-
-  ui:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: cpi-ui
-    command: streamlit run ui/app.py --server.port=8501 --server.address=0.0.0.0 --server.maxUploadSize=1024
-=======
->>>>>>> d1f56b3 (implemented UI screen, need to have ui call the producer)
     ports:
       - "8501:8501"
-    environment:
-      POSTGRES_DB: ${POSTGRES_DB:-cpi_analytics}
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
-      POSTGRES_HOST: postgres
-      POSTGRES_PORT: 5432
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
-      KAFKA_CONSUMER_GROUP: ${KAFKA_CONSUMER_GROUP:-cpi-etl}
-<<<<<<< HEAD
-    volumes:
-      - .:/app
-=======
-    command: streamlit run ui/streamlit_app.py --server.port=8501 --server.address=0.0.0.0
     volumes:
       - .:/app
       - .streamlit:/root/.streamlit
->>>>>>> d1f56b3 (implemented UI screen, need to have ui call the producer)
 
 volumes:
   postgres_data:
