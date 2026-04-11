@@ -17,42 +17,17 @@ A real-time data pipeline integrating BLS (Bureau of Labor Statistics) and IMF C
 
 ## Project Structure
 
-```
-├── data/                          # Raw input files (cu.data.0.Current, IMF CSVs)
-├── db/                            # PostgreSQL schema and migrations
-│   ├── 00_init.sql               # Database initialization
-│   ├── 01_raw_bls_cpi.sql        # Raw BLS table
-│   ├── 02_raw_imf_cpi.sql        # Raw IMF table
-│   ├── 03_normalized_cpi.sql     # Normalized multi-source table
-│   ├── 04_comparison_metrics.sql # Source comparison analysis
-│   ├── 05_derived_inflation_metrics.sql
-│   ├── 06_idx_normalized_cpi_series_source.sql # Database index
-│   └── 07_cpi_analysis.sql       # Analysis tables (growth, volatility, indexed)
-├── producers/                     # Kafka producers
-│   ├── bls_producer.py           # Publishes BLS CPI events
-│   └── imf_producer.py           # Publishes IMF CPI events
-├── etl/                           # Stream processing
-│   ├── consumer.py               # Kafka consumer (auto-runs in Docker)
-│   ├── loaders.py                # Database insert logic
-│   └── transforms.py             # Data transformation utilities
-├── analytics/                     # Analysis computation
-│   ├── analyze.py                # Main analytics orchestrator
-│   ├── refresh_cpi_growth_analysis.sql
-│   ├── refresh_cpi_indexed_series.sql
-│   ├── refresh_cpi_volatility.sql
-│   ├── refresh_cpi_components_summary.sql
-│   └── refresh_comparison_metrics.sql
-├── visualization/                # Charting
-│   └── build_charts.py           # Generate PNG visualizations
-├── outputs/
-│   ├── reports/                  # Exported CSV reports
-│   └── charts/                   # Generated PNG charts
-├── ui/                            # Web interfaces
-│   └── streamlit_app.py          # Data upload UI
-├── docker-compose.yml            # Container orchestration
-├── Dockerfile                    # Application image
-└── requirements.txt              # Python dependencies
-```
+| Component | Folder | Purpose |
+|-----------|--------|---------|
+| 1 | data/ | Raw input files (cu.data.0.Current, IMF CSVs) |
+| 2 | producers/ | Kafka producers (bls_producer.py, imf_producer.py) |
+| 3 | etl/ | Stream consumer, database loaders, transforms |
+| 4 | db/ | PostgreSQL schema (raw tables, normalized, analysis tables) |
+| 5 | analytics/ | Analysis orchestrator and SQL refresh scripts |
+| 6 | visualization/ | Chart generation from database results |
+| 7 | outputs/ | Generated reports (CSV) and charts (PNG) |
+| 8 | ui/ | Streamlit data upload interface |
+| - | common/ | Shared configuration and utilities |
 
 ## Quick Start Demo
 
