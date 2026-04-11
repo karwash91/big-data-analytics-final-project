@@ -22,7 +22,8 @@ A real-time data pipeline integrating BLS (Bureau of Labor Statistics) and IMF C
 ### Prerequisites
 - Python 3.12+ with venv
 - Docker Desktop
-- BLS data file: Download from https://download.bls.gov/pub/time.series/cu/cu.data.0.Current and save to `data/`
+- **Required:** BLS data file: Download from https://download.bls.gov/pub/time.series/cu/cu.data.0.Current and save to `data/`
+- **Optional:** IMF data file: Download from https://data.imf.org/en/datasets/IMF.STA:CPI and save to `data/`
 
 ### Step 1: Start Infrastructure
 ```bash
