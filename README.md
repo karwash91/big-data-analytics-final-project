@@ -2,32 +2,20 @@
 
 A real-time data pipeline integrating BLS (Bureau of Labor Statistics) and IMF CPI data through Kafka streaming, PostgreSQL analytics, and automated reporting. Demonstrates end-to-end data ingestion, stream processing, normalized analytics, and visualization.
 
-## Architecture
+## Architecture & Project Structure
 
-| Component | Technology | Purpose |
-|-----------|-----------|---------|
-| **Data Sources** | BLS, IMF CSV files | Raw CPI time series data |
-| **Streaming** | Apache Kafka | Publish-subscribe message broker for data events |
-| **Stream Processing** | Kafka Consumer (Python) | Subscribe to topics, parse messages, validate data |
-| **Storage** | PostgreSQL | Raw, normalized, and derived analytics tables |
-| **Analytics** | SQL refresh scripts | Generate growth rates, volatility, indexing, comparisons |
-| **Reporting** | Python + Pandas | Export CSV reports, generate PNG charts |
-| **Orchestration** | Docker Compose | Multi-container deployment with health checks |
-| **Web UI** | Streamlit | File upload interface and Kafka monitoring |
-
-## Project Structure
-
-| Component | Folder | Purpose |
-|-----------|--------|---------|
-| 1 | data/ | Raw input files (cu.data.0.Current, IMF CSVs) |
-| 2 | producers/ | Kafka producers (bls_producer.py, imf_producer.py) |
-| 3 | etl/ | Stream consumer, database loaders, transforms |
-| 4 | db/ | PostgreSQL schema (raw tables, normalized, analysis tables) |
-| 5 | analytics/ | Analysis orchestrator and SQL refresh scripts |
-| 6 | visualization/ | Chart generation from database results |
-| 7 | outputs/ | Generated reports (CSV) and charts (PNG) |
-| 8 | ui/ | Streamlit data upload interface |
-| - | common/ | Shared configuration and utilities |
+| Step | Folder | Technology | Purpose |
+|------|--------|-----------|---------|
+| 1 | data/ | CSV files | Raw CPI time series data (BLS, IMF) |
+| 2 | producers/ | Python + Kafka | Publish BLS/IMF events to Kafka topics |
+| 3 | etl/ | Kafka Consumer | Subscribe to topics, parse, validate, load to database |
+| 4 | db/ | PostgreSQL | Raw, normalized, and derived analytics tables |
+| 5 | analytics/ | SQL + Python | Refresh analysis tables; calculate growth, volatility, indexing |
+| 6 | visualization/ | Matplotlib | Generate PNG charts from database results |
+| 7 | outputs/ | CSV + PNG | Exported reports and generated charts |
+| 8 | ui/ | Streamlit | Web interface for file upload and Kafka UI |
+| - | common/ | Python | Shared configuration and utilities |
+| - | docker-compose.yml | Docker Compose | Multi-container orchestration (Kafka, PostgreSQL, services) |
 
 ## Quick Start Demo
 
