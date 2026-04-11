@@ -1,142 +1,123 @@
 # Streaming CPI Analytics Pipeline
 
-A real-time data pipeline integrating BLS (Bureau of Labor Statistics) and IMF CPI data through Kafka streaming, PostgreSQL analytics, and automated reporting. Demonstrates end-to-end data ingestion, stream processing, normalized analytics, and visualization.
+A small end-to-end demo that compares BLS and IMF CPI data through Kafka, PostgreSQL, and Streamlit. The UI keeps the demo narrow on purpose: **All items** as the main story, plus **Education** as the example of a narrower shared category.
 
-## Architecture & Project Structure
+## What the demo keeps
 
-| Step | Folder | Technology | Purpose |
-|------|--------|-----------|---------|
-| 1 | data/ | CSV files | Raw CPI time series data (BLS, IMF) |
-| 2 | producers/ | Python + Kafka | Publish BLS/IMF events to Kafka topics |
-| 3 | etl/ | Kafka Consumer | Subscribe to topics, parse, validate, load to database |
-| 4 | db/ | PostgreSQL | Raw, normalized, and derived analytics tables |
-| 5 | analytics/ | SQL + Python | Refresh analysis tables; calculate growth, volatility, indexing |
-| 6 | visualization/ | Matplotlib | Generate PNG charts from database results |
-| 7 | outputs/ | CSV + PNG | Exported reports and generated charts |
-| 8 | ui/ | Streamlit | Web interface for file upload and Kafka UI |
-| - | common/ | Python | Shared configuration and utilities |
-| - | docker-compose.yml | Docker Compose | Multi-container orchestration (Kafka, PostgreSQL, services) |
+- Kafka producers and topics for raw events
+- A consumer that loads raw and normalized rows into PostgreSQL
+- One analytics table that matters for the demo:
+  - `derived_inflation_metrics`
+- A small chart set for two shared categories:
+  - `bls_us_all_items_cpi.png`
+  - `imf_us_all_items_cpi.png`
+  - `all_items_yoy_inflation_by_source.png`
+  - `bls_us_education_cpi.png`
+  - `imf_us_education_cpi.png`
+  - `education_yoy_inflation_by_source.png`
 
-## Quick Start Demo
+## Project structure
+
+| Step | Folder | Purpose |
+|------|--------|---------|
+| 1 | `data/` | Raw BLS and IMF source files |
+| 2 | `producers/` | Publish raw CPI events to Kafka |
+| 3 | `etl/` | Consume Kafka topics and load PostgreSQL |
+| 4 | `db/` | Raw, normalized, and demo analytics tables |
+| 5 | `analytics/` | Refresh inflation metrics and export summary reports |
+| 6 | `visualization/` | Build the demo PNG charts |
+| 7 | `outputs/` | Exported CSV reports and chart images |
+| 8 | `ui/` | Streamlit upload and demo page |
+| - | `common/` | Shared config and series mapping |
+
+## Demo mapping
+
+The Streamlit UI supports two shared categories:
+
+- `all_items`
+  - BLS series: `CUSR0000SA0`
+  - IMF series: `USA.CPI._T.IX.M`
+  - Normalized series: `us_all_items_cpi`
+- `education`
+  - BLS series: `CUSR0000SAE1`
+  - IMF series: `USA.CPI.CP10.IX.M`
+  - Normalized series: `us_education_cpi`
+
+## Quick start
 
 ### Prerequisites
-- Python 3.12+ with venv
-- Docker Desktop
-- **Required:** BLS data file: Download from https://download.bls.gov/pub/time.series/cu/cu.data.0.Current and save to `data/`
-- **Optional:** IMF data file: Download from https://data.imf.org/en/datasets/IMF.STA:CPI and save to `data/`
 
-### Step 1: Start Infrastructure
+- Python 3.12+
+- Docker Desktop
+- BLS CPI file such as `cu.data.0.Current`
+- IMF CPI CSV export such as `dataset_*_IMF.STA_CPI_5.0.0.csv`
+
+### 1. Start the stack
+
 ```bash
 docker compose up -d
 ```
 
-Services start automatically:
-- PostgreSQL (port 5432, ready to connect)
-- Kafka broker (port 9092/9094)
-- Kafka UI (port 8080)
-- Streamlit UI (port 8501)
-- ETL Consumer service (auto-running, processing messages)
+This starts PostgreSQL, Kafka, Kafka UI, the consumer, and Streamlit.
 
-### Step 2: Ingest Data
-**Option A: Manual producer (fastest for demo)**
-```bash
-# Set up environment
-python -m venv .venv
-source .venv/bin/activate  # macOS/Linux
-python -m pip install -r requirements.txt
+### 2. Load data in the UI
 
-# Run producer (publishes all cu.data* files to Kafka)
-python -m producers.bls_producer
-# Wait for completion: will publish 1000+ messages
-```
+- Open `http://localhost:8501`
+- Pick `All items` or `Education`
+- Upload either the BLS file or the IMF file
+- Click `Load Data`
 
-**Option B: Streamlit UI**
-- Open http://localhost:8501
-- Upload a BLS CPI data file
-- Specify a category name
-- Click "Load Data"
+The page publishes only the selected shared series for the uploaded source.
 
-### Step 3: Monitor Stream Processing
-Consumer automatically processes Kafka messages and stores to PostgreSQL:
-- View Kafka topics: http://localhost:8080
-- Check database: 
-  ```bash
-  docker exec cpi-postgres psql -U postgres -d cpi_analysis -c "SELECT COUNT(*) FROM normalized_cpi;"
-  ```
+### 3. Monitor Kafka
 
-### Step 4: Generate Analytics
+- Streamlit UI: `http://localhost:8501`
+- Kafka UI: `http://localhost:8080`
+
+### 4. Refresh analytics manually if needed
+
 ```bash
 python -m analytics.analyze
+python -m visualization.build_charts
 ```
 
-Automatically:
-- Refreshes 4 analysis tables (cpi_growth_analysis, cpi_indexed_series, cpi_volatility, cpi_components_summary)
-- Calculates growth rates (MoM, YoY, YTD)
-- Computes volatility windows (30, 90, 365 days)
-- Exports 5 CSV reports to `outputs/reports/`
-- Generates 4 PNG charts to `outputs/charts/`
+These commands refresh the demo analytics table and rebuild the demo charts.
 
-### Step 5: Review Results
+### 5. Inspect results
+
 ```bash
-# View latest data
-docker exec cpi-postgres psql -U postgres -d cpi_analysis \
-  -c "SELECT date, cpi_value, mom_growth_pct, yoy_growth_pct FROM cpi_growth_analysis ORDER BY date DESC LIMIT 5;"
+# Normalized All items rows
+docker exec cpi-postgres psql -U postgres -d cpi_analysis   -c "SELECT source, date, value FROM normalized_cpi WHERE normalized_series = 'us_all_items_cpi' ORDER BY date DESC LIMIT 5;"
 
-# View chart files
-ls -lh outputs/charts/
-# View reports
+# Normalized Education rows
+docker exec cpi-postgres psql -U postgres -d cpi_analysis   -c "SELECT source, date, value FROM normalized_cpi WHERE normalized_series = 'us_education_cpi' ORDER BY date DESC LIMIT 5;"
+
+# Inflation metrics
+docker exec cpi-postgres psql -U postgres -d cpi_analysis   -c "SELECT source, date, pct_change_1m, pct_change_12m FROM derived_inflation_metrics WHERE normalized_series = 'us_education_cpi' ORDER BY date DESC LIMIT 5;"
+
+# Exported artifacts
 ls -lh outputs/reports/
+ls -lh outputs/charts/
 ```
 
-**Generated Artifacts:**
+## Reports and charts
 
-Charts (PNG):
-- `bls_us_all_items_cpi.png` - CPI trend over 29 years
-- `inflation_rate_by_source.png` - YoY growth rate comparison
-- `source_divergence_over_time.png` - BLS vs IMF differences
-- `imf_us_all_items_cpi.png` - IMF-sourced CPI trend
+Reports:
 
-Reports (CSV):
-- `cpi_growth_analysis.csv` - Growth metrics (MoM, YoY, YTD %)
-- `cpi_indexed_series.csv` - Reindexed values (multiple base periods)
-- `cpi_volatility_metrics.csv` - Rolling volatility (30, 90, 365 day windows)
-- `source_summary.csv` - Data source statistics
-- `largest_divergence_periods.csv` - Multi-source variance analysis
+- `source_summary.csv`
+- `inflation_metrics.csv`
 
-## Data Analysis Insights
+Charts:
 
-### Current State (February 2026)
-- **CPI Level:** 324.50 (vs 154.90 baseline in Jan 1997)
-- **YoY Growth:** 2.56% (within Fed target range)
-- **MoM Growth:** 0.25% (stable)
+- `bls_us_all_items_cpi.png`
+- `imf_us_all_items_cpi.png`
+- `all_items_yoy_inflation_by_source.png`
+- `bls_us_education_cpi.png`
+- `imf_us_education_cpi.png`
+- `education_yoy_inflation_by_source.png`
 
-### Inflation Trend (349 months analyzed)
-| Year | Avg YoY | Peak | Note |
-|------|---------|------|------|
-| 2008 | 4.19% | 7.20% | Financial crisis |
-| 2020 | 0.91% | 2.72% | Pandemic deflation |
-| 2021 | 4.80% | 7.32% | Recovery inflation begins |
-| 2022 | 7.70% | 8.75% | **Peak inflation** |
-| 2023 | 3.88% | 5.75% | Rapid cooling |
-| 2024 | 3.06% | 3.68% | Continued decline |
-| 2025 | 2.73% | 3.08% | Back to target |
-| 2026 | 2.66% | 2.77% | Stable |
+## Notes
 
-## Troubleshooting
-
-**Consumer not processing messages:**
-```bash
-docker compose logs consumer | tail -50
-```
-
-**Database connection issues:**
-```bash
-docker compose exec postgres psql -U postgres -d cpi_analysis -c "\dt"
-```
-
-**Rebuild from scratch:**
-```bash
-docker compose down -v
-rm -rf outputs/*
-docker compose up -d
-```
+- The consumer stays separate from the UI so the Kafka boundary is still visible in the demo.
+- The UI uses a small hardcoded mapping on purpose. That removes free-text category entry and keeps the story consistent.
+- If you want a clean database after schema changes, reset the stack with `docker compose down -v` and start it again.

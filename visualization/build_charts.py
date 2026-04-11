@@ -1,12 +1,11 @@
-"""Build chart images from analytics tables."""
+"""Build the small set of demo chart images."""
 
 import logging
 from pathlib import Path
 
 import matplotlib.pyplot as plt
 import pandas as pd
-from sqlalchemy import create_engine
-from sqlalchemy.engine import URL
+import psycopg2
 
 from common.config import (
     OUTPUTS_DIR,
@@ -16,17 +15,50 @@ from common.config import (
     POSTGRES_PORT,
     POSTGRES_USER,
 )
+from common.series_mapping import CHART_FILENAMES_BY_CATEGORY, DEMO_CHART_FILENAMES, SHARED_CPI_SERIES
 
 logger = logging.getLogger(__name__)
 
 
-def plot_source_series(frame: pd.DataFrame, output_dir: Path) -> None:
-    """Plot raw source trends."""
-    for (source, series_name), group in frame.groupby(["source", "normalized_series"]):
-        output_path = output_dir.joinpath(f"{source}_{series_name}.png")
+def get_db_connection():
+    return psycopg2.connect(
+        dbname=POSTGRES_DB,
+        user=POSTGRES_USER,
+        password=POSTGRES_PASSWORD,
+        host=POSTGRES_HOST,
+        port=POSTGRES_PORT,
+    )
+
+
+def read_sql_frame(connection, query: str, params: tuple[object, ...]) -> pd.DataFrame:
+    with connection.cursor() as cursor:
+        cursor.execute(query, params)
+        columns = [description[0] for description in cursor.description]
+        return pd.DataFrame(cursor.fetchall(), columns=columns)
+
+
+def remove_stale_demo_charts(output_dir: Path) -> None:
+    for chart_path in output_dir.glob("*.png"):
+        if chart_path.name not in DEMO_CHART_FILENAMES:
+            chart_path.unlink()
+    for filename in DEMO_CHART_FILENAMES:
+        output_dir.joinpath(filename).unlink(missing_ok=True)
+
+
+def plot_source_series(
+    frame: pd.DataFrame,
+    output_dir: Path,
+    normalized_series: str,
+    label: str,
+) -> None:
+    if frame.empty:
+        return
+
+    for source, group in frame.groupby("source"):
+        output_path = output_dir.joinpath(f"{source}_{normalized_series}.png")
         plt.figure(figsize=(12, 6))
-        plt.plot(group["date"], group["value"], marker="o")
-        plt.title(f"{source.upper()} {series_name} Trend")
+        plt.plot(group["date"], group["value"], linewidth=2)
+        plt.title(f"{label} CPI Index - {source.upper()}")
         plt.xlabel("Date")
         plt.ylabel("CPI Index")
         plt.tight_layout()
@@ -35,56 +67,23 @@ def plot_source_series(frame: pd.DataFrame, output_dir: Path) -> None:
         logger.info("Wrote chart %s", output_path.name)
 
 
-def plot_inflation(frame: pd.DataFrame, output_dir: Path) -> None:
-    """Plot month-over-month inflation."""
-    output_path = output_dir.joinpath("inflation_rate_by_source.png")
+def plot_yoy_inflation(
+    frame: pd.DataFrame,
+    output_dir: Path,
+    category: str,
+    label: str,
+) -> None:
+    if frame.empty:
+        return
+
+    output_path = output_dir.joinpath(f"{category}_yoy_inflation_by_source.png")
     plt.figure(figsize=(12, 6))
-    for (series_name, source), group in frame.groupby(["normalized_series", "source"]):
-        plt.plot(
-            group["date"],
-            group["pct_change_1m"],
-            marker="o",
-            label=f"{source} | {series_name}",
-        )
-    plt.title("Month-over-Month Inflation by Source")
+    for source, group in frame.groupby("source"):
+        plt.plot(group["date"], group["pct_change_12m"], linewidth=2, label=source.upper())
+    plt.title(f"{label} CPI YoY Inflation by Source")
     plt.xlabel("Date")
-    plt.ylabel("Percent Change (1M)")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=160)
-    plt.close()
-    logger.info("Wrote chart %s", output_path.name)
-
-
-def plot_divergence(frame: pd.DataFrame, output_dir: Path) -> None:
-    """Plot source differences."""
-    output_path = output_dir.joinpath("source_divergence_over_time.png")
-    plt.figure(figsize=(12, 6))
-    for (series_name, source_a, source_b), group in frame.groupby(
-        ["normalized_series", "source_a", "source_b"]
-    ):
-        label = f"{source_a} vs {source_b} | {series_name}"
-        plt.plot(group["date"], group["absolute_difference"], marker="o", label=label)
-    plt.title("Absolute Divergence Between Sources")
-    plt.xlabel("Date")
-    plt.ylabel("Absolute Difference")
-    plt.legend()
-    plt.tight_layout()
-    plt.savefig(output_path, dpi=160)
-    plt.close()
-    logger.info("Wrote chart %s", output_path.name)
-
-
-def plot_top_inflation(frame: pd.DataFrame, output_dir: Path) -> None:
-    """Plot top 12-month inflation periods."""
-    output_path = output_dir.joinpath("top_12m_inflation_periods.png")
-    labels = frame["date"].dt.strftime("%Y-%m-%d") + " | " + frame["source"] + " | " + frame["normalized_series"]
-    plt.figure(figsize=(12, 6))
-    plt.bar(labels, frame["pct_change_12m"])
-    plt.title("Top 12-Month Inflation Periods")
-    plt.xlabel("Date | Source | Series")
     plt.ylabel("Percent Change (12M)")
-    plt.xticks(rotation=45, ha="right")
+    plt.legend()
     plt.tight_layout()
     plt.savefig(output_path, dpi=160)
     plt.close()
@@ -92,41 +91,16 @@ def plot_top_inflation(frame: pd.DataFrame, output_dir: Path) -> None:
 
 
 def main() -> None:
-    """Query analytics tables and write chart files."""
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s %(message)s",
     )
     output_dir = OUTPUTS_DIR.joinpath("charts")
     output_dir.mkdir(parents=True, exist_ok=True)
-    engine = create_engine(
-        URL.create(
-            drivername="postgresql+psycopg2",
-            username=POSTGRES_USER,
-            password=POSTGRES_PASSWORD,
-            host=POSTGRES_HOST,
-            port=POSTGRES_PORT,
-            database=POSTGRES_DB,
-        )
-    )
-
-    inflation_sql = """
-        SELECT
-            date,
-            normalized_series,
-            source,
-            pct_change_1m
-        FROM derived_inflation_metrics
-        ORDER BY date
-    """
+    remove_stale_demo_charts(output_dir)
 
     source_series_sql = """
-        SELECT
-            source,
-            normalized_series,
-            date,
-            value
-        FROM (
+        WITH latest_normalized AS (
             SELECT DISTINCT ON (source, normalized_series, date)
                 source,
                 normalized_series,
@@ -134,51 +108,49 @@ def main() -> None:
                 value
             FROM normalized_cpi
             ORDER BY source, normalized_series, date, created_at DESC, id DESC
-        ) AS latest_normalized
-        ORDER BY source, normalized_series, date
+        )
+        SELECT source, normalized_series, date, value
+        FROM latest_normalized
+        WHERE normalized_series = %s
+        ORDER BY source, date
     """
 
-    divergence_sql = """
-        SELECT
-            date,
-            normalized_series,
-            source_a,
-            source_b,
-            absolute_difference
-        FROM comparison_metrics
+    inflation_sql = """
+        SELECT date, source, pct_change_12m
+        FROM derived_inflation_metrics
+        WHERE normalized_series = %s AND pct_change_12m IS NOT NULL
         ORDER BY date
     """
 
-    top_inflation_sql = """
-        SELECT
-            date,
-            normalized_series,
-            source,
-            pct_change_12m
-        FROM derived_inflation_metrics
-        WHERE pct_change_12m IS NOT NULL
-        ORDER BY pct_change_12m DESC, date DESC
-        LIMIT 10
-    """
+    connection = get_db_connection()
+    try:
+        for category, series in SHARED_CPI_SERIES.items():
+            normalized_series = series["normalized_series"]
+            label = series["label"]
+            logger.info(
+                "Starting chart generation for category=%s normalized_series=%s",
+                category,
+                normalized_series,
+            )
 
-    logger.info("Starting chart generation")
+            params = (normalized_series,)
+            source_series_frame = read_sql_frame(connection, source_series_sql, params)
+            inflation_frame = read_sql_frame(connection, inflation_sql, params)
 
-    inflation_frame = pd.read_sql_query(inflation_sql, engine)
-    source_series_frame = pd.read_sql_query(source_series_sql, engine)
-    divergence_frame = pd.read_sql_query(divergence_sql, engine)
-    top_inflation_frame = pd.read_sql_query(top_inflation_sql, engine)
-    inflation_frame["date"] = pd.to_datetime(inflation_frame["date"])
-    source_series_frame["date"] = pd.to_datetime(source_series_frame["date"])
-    divergence_frame["date"] = pd.to_datetime(divergence_frame["date"])
-    top_inflation_frame["date"] = pd.to_datetime(top_inflation_frame["date"])
+            if not source_series_frame.empty:
+                source_series_frame["date"] = pd.to_datetime(source_series_frame["date"])
+            if not inflation_frame.empty:
+                inflation_frame["date"] = pd.to_datetime(inflation_frame["date"])
 
-    plot_source_series(source_series_frame, output_dir)
-    plot_inflation(inflation_frame, output_dir)
-    plot_divergence(divergence_frame, output_dir)
-    plot_top_inflation(top_inflation_frame, output_dir)
+            plot_source_series(source_series_frame, output_dir, normalized_series, label)
+            plot_yoy_inflation(inflation_frame, output_dir, category, label)
 
-    logger.info("Finished chart generation")
-    engine.dispose()
+        logger.info(
+            "Finished chart generation for categories=%s",
+            ",".join(CHART_FILENAMES_BY_CATEGORY),
+        )
+    finally:
+        connection.close()
 
 
 if __name__ == "__main__":

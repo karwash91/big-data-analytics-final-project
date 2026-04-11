@@ -15,6 +15,5 @@ IF NOT EXISTS normalized_cpi (
     frequency TEXT NOT NULL,
     record_hash TEXT NOT NULL,
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-    audit_id INTEGER REFERENCES ingestion_audit(id),
     UNIQUE (record_hash)
 );

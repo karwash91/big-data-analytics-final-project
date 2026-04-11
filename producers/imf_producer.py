@@ -10,10 +10,9 @@ from datetime import datetime, timezone
 from kafka import KafkaProducer
 
 from common.config import DATA_DIR, KAFKA_BOOTSTRAP_SERVERS
+from common.series_mapping import IMF_SERIES_TO_METADATA
 
 TOPIC = "cpi.raw.imf"
-TARGET_SERIES_ID = "USA.CPI._T.IX.M"
-TARGET_NORMALIZED_SERIES = "us_all_items_cpi"
 
 
 logger = logging.getLogger(__name__)
@@ -27,7 +26,9 @@ def get_kafka_producer() -> KafkaProducer:
     )
 
 
-def iter_events(row: dict[str, str]) -> list[dict[str, object]]:
+def iter_events(
+    row: dict[str, str], series_metadata: dict[str, str]
+) -> list[dict[str, object]]:
     events: list[dict[str, object]] = []
     for column_name, raw_value in row.items():
         # Keep monthly value columns
@@ -46,10 +47,10 @@ def iter_events(row: dict[str, str]) -> list[dict[str, object]]:
                 "year": year,
                 "month": month,
                 "value": float(raw_value),
-                "category": "all_items",
+                "category": series_metadata["category"],
                 "region": "us",
                 "units": "index",
-                "normalized_series": TARGET_NORMALIZED_SERIES,
+                "normalized_series": series_metadata["normalized_series"],
                 "frequency": "monthly",
             }
         )
@@ -82,10 +83,12 @@ def main() -> None:
     with csv_path.open(newline="", encoding="utf-8-sig") as handle:
         reader = csv.DictReader(handle)
         for row in reader:
-            if row["SERIES_CODE"] != TARGET_SERIES_ID:
+            series_code = row["SERIES_CODE"].strip()
+            series_metadata = IMF_SERIES_TO_METADATA.get(series_code)
+            if series_metadata is None:
                 continue
 
-            for event in iter_events(row):
+            for event in iter_events(row, series_metadata):
                 event["ingested_at"] = datetime.now(timezone.utc).replace(microsecond=0).isoformat()
                 message_key = (
                     f"{event['source']}:{event['source_series_id']}:{event['date']}"
@@ -99,9 +102,6 @@ def main() -> None:
                     sent_count,
                 )
                 time.sleep(0.01)  # Slow replay slightly
-
-            # Target series already found
-            break
 
     producer.flush()
     logger.info("Finished producer source=%s count=%s", "imf", sent_count)

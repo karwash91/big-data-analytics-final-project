@@ -1,5 +1,6 @@
-[client]
+[server]
 maxUploadSize = 2048
+maxMessageSize = 2048
 
 [logger]
 level = "info"

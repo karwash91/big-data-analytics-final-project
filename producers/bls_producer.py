@@ -10,14 +10,13 @@ from datetime import datetime, timezone
 from kafka import KafkaProducer
 
 from common.config import DATA_DIR, KAFKA_BOOTSTRAP_SERVERS
+from common.series_mapping import BLS_SERIES_TO_METADATA
 
 logger = logging.getLogger(__name__)
 
 
 TOPIC = "cpi.raw.bls"
 DATA_FILE_PATTERN = "cu.data*"
-TARGET_SERIES_ID = "CUSR0000SA0"
-TARGET_NORMALIZED_SERIES = "us_all_items_cpi"
 
 
 def get_kafka_producer() -> KafkaProducer:
@@ -28,7 +27,7 @@ def get_kafka_producer() -> KafkaProducer:
     )
 
 
-def map_row(row: dict[str, str]) -> dict[str, object]:
+def map_row(row: dict[str, str], series_metadata: dict[str, str]) -> dict[str, object]:
     year = int(row["year"])
     # Strip leading period marker
     month = int(row["period"][1:])
@@ -39,17 +38,18 @@ def map_row(row: dict[str, str]) -> dict[str, object]:
         "year": year,
         "month": month,
         "value": float(row["value"]),
-        "category": "all_items",
+        "category": series_metadata["category"],
         "region": "us",
         "units": "index",
-        "normalized_series": TARGET_NORMALIZED_SERIES,
+        "normalized_series": series_metadata["normalized_series"],
         "frequency": "monthly",
     }
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="BLS CPI Kafka Producer")
-    args = parser.parse_args([])  # No file argument needed
+    parser.add_argument("--file", help="Optional BLS data file to process from data/.")
+    args = parser.parse_args()
 
     logging.basicConfig(
         level=logging.INFO,
@@ -60,8 +60,10 @@ def main() -> None:
     producer = get_kafka_producer()
     sent_count = 0
 
-    # Find all files matching the pattern
-    data_files = sorted(DATA_DIR.glob(DATA_FILE_PATTERN))
+    if args.file:
+        data_files = [DATA_DIR / args.file]
+    else:
+        data_files = sorted(DATA_DIR.glob(DATA_FILE_PATTERN))
     if not data_files:
         logger.warning(
             "No data files found matching pattern=%s in directory=%s",
@@ -78,6 +80,10 @@ def main() -> None:
     )
 
     for csv_path in data_files:
+        if not csv_path.exists():
+            logger.warning("Skipping missing file=%s", csv_path)
+            continue
+
         logger.info(
             "Processing file source=%s topic=%s file=%s", "bls", TOPIC, csv_path.name
         )
@@ -99,7 +105,12 @@ def main() -> None:
                     )
                     continue
 
-                event = map_row(row)
+                series_id = row["series_id"].strip()
+                series_metadata = BLS_SERIES_TO_METADATA.get(series_id)
+                if series_metadata is None:
+                    continue
+
+                event = map_row(row, series_metadata)
                 # Stamp replay publish time
                 event["ingested_at"] = (
                     datetime.now(timezone.utc).replace(microsecond=0).isoformat()
