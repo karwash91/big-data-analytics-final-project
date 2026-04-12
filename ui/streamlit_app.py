@@ -365,7 +365,7 @@ def render_chart_image(chart_path: Path) -> None:
 def render_demo_resources(category: str) -> None:
     st.subheader("Resources")
     st.markdown(f"- [Open Kafka UI]({KAFKA_UI_URL})")
-    st.markdown(f"- Charts directory: `{OUTPUTS_DIR.joinpath('charts')}`")
+    st.markdown(f"- Charts directory: {OUTPUTS_DIR.joinpath('charts')}")
     if st.button("Refresh Analytics and Charts", use_container_width=True):
         with st.spinner("Refreshing analytics and charts..."):
             refresh_success, refresh_message = refresh_analytics_outputs()
@@ -376,7 +376,7 @@ def render_demo_resources(category: str) -> None:
     chart_paths = get_chart_paths(category)
     if not chart_paths:
         st.info(
-            "No charts found yet. Upload data and run the refresh step to populate `outputs/charts/`."
+            "No charts found yet."
         )
         return
 
@@ -448,7 +448,7 @@ with col2:
         f"""
         **How to use:**
         1. Upload a supported data file
-        2. Click `Load Data`
+        2. Click Load Data
         3. The app publishes records to Kafka
         4. The running consumer loads the rows into PostgreSQL
         5. The app refreshes the analytics and charts

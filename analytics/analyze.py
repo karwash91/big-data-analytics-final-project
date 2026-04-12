@@ -21,6 +21,7 @@ logger = logging.getLogger(__name__)
 REPORT_FILENAMES = (
     "source_summary.csv",
     "inflation_metrics.csv",
+    "top_12m_inflation_periods.csv",
 )
 
 
@@ -98,6 +99,34 @@ def main() -> None:
         ORDER BY normalized_series, date DESC, source ASC
     """
 
+    top_inflation_sql = """
+        WITH ranked_periods AS (
+            SELECT
+                date,
+                normalized_series,
+                source,
+                pct_change_1m,
+                pct_change_12m,
+                rolling_avg_3m,
+                ROW_NUMBER() OVER (
+                    PARTITION BY normalized_series
+                    ORDER BY pct_change_12m DESC, date DESC, source ASC
+                ) AS rank_12m
+            FROM derived_inflation_metrics
+            WHERE normalized_series = ANY(%s) AND pct_change_12m IS NOT NULL
+        )
+        SELECT
+            date,
+            normalized_series,
+            source,
+            pct_change_1m,
+            pct_change_12m,
+            rolling_avg_3m
+        FROM ranked_periods
+        WHERE rank_12m <= 10
+        ORDER BY normalized_series, pct_change_12m DESC, date DESC, source ASC
+    """
+
     logger.info(
         "Starting analytics refresh for normalized_series=%s",
         ",".join(SUPPORTED_NORMALIZED_SERIES),
@@ -112,14 +141,20 @@ def main() -> None:
         params = (list(SUPPORTED_NORMALIZED_SERIES),)
         summary_df = read_sql_frame(connection, summary_sql, params)
         inflation_df = read_sql_frame(connection, inflation_sql, params)
+        top_inflation_df = read_sql_frame(connection, top_inflation_sql, params)
 
         summary_df.to_csv(reports_dir.joinpath("source_summary.csv"), index=False)
         inflation_df.to_csv(reports_dir.joinpath("inflation_metrics.csv"), index=False)
+        top_inflation_df.to_csv(
+            reports_dir.joinpath("top_12m_inflation_periods.csv"),
+            index=False,
+        )
 
         logger.info(
-            "Wrote reports summary_rows=%s inflation_rows=%s",
+            "Wrote reports summary_rows=%s inflation_rows=%s top_inflation_rows=%s",
             len(summary_df),
             len(inflation_df),
+            len(top_inflation_df),
         )
         logger.info("Finished analytics refresh")
     finally:

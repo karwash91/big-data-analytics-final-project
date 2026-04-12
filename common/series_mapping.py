@@ -15,6 +15,30 @@ SHARED_CPI_SERIES: Final[dict[str, dict[str, str]]] = {
         "bls_series_id": "CUSR0000SAE1",
         "imf_series_id": "USA.CPI.CP10.IX.M",
     },
+    "communication": {
+        "label": "Communication",
+        "normalized_series": "us_communication_cpi",
+        "bls_series_id": "CUSR0000SAE2",
+        "imf_series_id": "USA.CPI.CP08.IX.M",
+    },
+    "medical_care": {
+        "label": "Medical care",
+        "normalized_series": "us_medical_care_cpi",
+        "bls_series_id": "CUSR0000SAM",
+        "imf_series_id": "USA.CPI.CP06.IX.M",
+    },
+    "recreation": {
+        "label": "Recreation",
+        "normalized_series": "us_recreation_cpi",
+        "bls_series_id": "CUSR0000SAR",
+        "imf_series_id": "USA.CPI.CP09.IX.M",
+    },
+    "transportation": {
+        "label": "Transportation",
+        "normalized_series": "us_transportation_cpi",
+        "bls_series_id": "CUSR0000SAT",
+        "imf_series_id": "USA.CPI.CP07.IX.M",
+    },
 }
 
 SUPPORTED_CATEGORY_KEYS: Final[tuple[str, ...]] = tuple(SHARED_CPI_SERIES)
@@ -27,6 +51,7 @@ CHART_FILENAMES_BY_CATEGORY: Final[dict[str, tuple[str, ...]]] = {
         f"bls_{series['normalized_series']}.png",
         f"imf_{series['normalized_series']}.png",
         f"{category}_yoy_inflation_by_source.png",
+        f"{category}_top_12m_inflation_periods.png",
     )
     for category, series in SHARED_CPI_SERIES.items()
 }
